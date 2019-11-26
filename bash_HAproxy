@@ -1,1 +1,49 @@
-test
+cd /tmp
+wget http://www.haproxy.org/download/2.0/src/haproxy-2.0.9.tar.gz > /dev/null 2>&1
+tar zxvf haproxy-2.0.9.tar.gz
+cd haproxy-2.0.9
+apt-get install make gcc -y > /dev/null 2>&1
+
+make TARGET=linux2628 PREFIX=/usr/local/haproxy
+make install PREFIX=/usr/local/haproxy
+cat > /usr/local/haproxy/haproxy.cfg <<EOF
+global         
+       maxconn 4096           
+       chroot /usr/local/haproxy
+        uid 99                 
+        gid 99               
+       daemon                  
+       pidfile /usr/local/haproxy/haproxy.pid  
+defaults             
+       log    global
+        log     127.0.0.1       local3        
+       mode    tcp         
+       option  tcplog       
+        option  dontlognull  
+        option  httpclose    
+       retries 3           
+       option  redispatch   
+       maxconn 2000                     
+       timeout connect     5000           
+       timeout client     50000          
+       timeout server     50000          
+frontend mysqlwrite-in                       
+       bind *:3306
+        mode    tcp 
+        option  tcplog
+        log     global
+        default_backend mysqlwritepool 
+       
+frontend mysqlread-in
+      bind *:3307
+      mode tcp
+      option tcplog
+      log global
+      default_backend mysqlreadpool
+backend mysqlwritepool                    
+       balance roundrobin
+       server  mysql01 10.0.0.10:3306  weight 5 check inter 2000 rise 2 fall 3
+backend mysqlreadpool                    
+       balance roundrobin
+        server  10.0.0.11 10.0.0.11:3306  weight 5 check inter 2000 rise 2 fall 3
+        server  10.0.0.12 10.0.0.12:3306  weight 5 check inter 2000 rise 2 fall 3
